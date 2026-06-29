@@ -4,7 +4,7 @@ Database initialization and connection management
 
 import logging
 from typing import Optional
-from pymongo.asynchronous.mongo_client import AsyncMongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.asynchronous.database import AsyncDatabase
 from beanie import init_beanie
 from app.core.config import settings
@@ -20,7 +20,7 @@ from app.domain.models.digital_identity import (
 logger = logging.getLogger(__name__)
 
 # Global database client
-_client: Optional[AsyncMongoClient] = None
+_client: Optional[AsyncIOMotorClient] = None
 _database: Optional[AsyncDatabase] = None
 
 
@@ -36,8 +36,8 @@ async def connect_to_db() -> bool:
     try:
         logger.info(f"Connecting to MongoDB at {settings.MONGODB_URL.split('@')[1] if '@' in settings.MONGODB_URL else settings.MONGODB_URL}")
         
-        # Create PyMongo async client
-        _client = AsyncMongoClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000)
+        # Create Motor async client
+        _client = AsyncIOMotorClient(settings.MONGODB_URL, serverSelectionTimeoutMS=5000)
         
         # Get database
         _database = _client[settings.DATABASE_NAME]
@@ -85,6 +85,6 @@ def get_database() -> Optional[AsyncDatabase]:
     return _database
 
 
-def get_client() -> Optional[AsyncMongoClient]:
+def get_client() -> Optional[AsyncIOMotorClient]:
     """Get the MongoDB client instance"""
     return _client

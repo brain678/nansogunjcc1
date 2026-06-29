@@ -2,8 +2,8 @@
 """Find correct AsyncClient import"""
 
 try:
-    from pymongo.asynchronous.mongo_client import AsyncMongoClient
-    print("✓ Found: pymongo.asynchronous.mongo_client.AsyncMongoClient")
+    from motor.motor_asyncio import AsyncIOMotorClient
+    print("✓ Found: motor.motor_asyncio.AsyncIOMotorClient")
 except ImportError as e:
     print(f"✗ Not found: {e}")
 
