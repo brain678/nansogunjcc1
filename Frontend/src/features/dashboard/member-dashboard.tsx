@@ -89,7 +89,7 @@ export function MemberDashboard() {
       <Card className="border-[#008753]/10 bg-white text-foreground">
         <CardHeader>
           <CardTitle className="text-slate-900">Upcoming Events</CardTitle>
-          <CardDescription>Events you're invited to</CardDescription>
+          <CardDescription>Events you&apos;re invited to</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-start justify-between pb-2 border-b border-slate-200">

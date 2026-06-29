@@ -100,7 +100,7 @@ export function CreateMeetingForm() {
             {/* Location */}
             <div className="space-y-2">
               <label className="text-sm font-medium">Location</label>
-              <Input {...register("location")} placeholder="Meeting venue or 'Virtual'" />
+              <Input {...register("location")} placeholder="Meeting venue or Virtual" />
               {errors.location && (
                 <p className="text-xs text-destructive">{errors.location.message}</p>
               )}

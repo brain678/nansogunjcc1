@@ -50,7 +50,7 @@ export function QrScanner() {
             <Camera className="h-5 w-5" />
             Open Camera Scanner
           </CardTitle>
-          <CardDescription>Use your device's camera to scan QR codes</CardDescription>
+          <CardDescription>Use your device&apos;s camera to scan QR codes</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="bg-muted rounded-lg h-64 flex items-center justify-center mb-4">
@@ -145,7 +145,7 @@ export function QrScanner() {
       <Card>
         <CardHeader>
           <CardTitle>Recent Scans</CardTitle>
-          <CardDescription>Today's check-ins</CardDescription>
+          <CardDescription>Today&apos;s check-ins</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2 text-sm">
