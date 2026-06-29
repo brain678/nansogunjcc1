@@ -1,0 +1,491 @@
+﻿
+  
+  export declare function fetchState<TQueryFnData, TError, TData, TQueryKey extends QueryKey>(data: 
+TData | undefined, options: QueryOptions<TQueryFnData, TError, TData, TQueryKey>): {
+      readonly error?: null | undefined;
+>     readonly status?: "pending" | undefined;
+      readonly fetchFailureCount: 0;
+      readonly fetchFailureReason: null;
+>     readonly fetchStatus: "fetching" | "paused";
+  };
+  
+> declare type FetchStatus = 'fetching' | 'paused' | 'idle';
+> export { FetchStatus }
+> export { FetchStatus as FetchStatus_alias_1 }
+  
+  export declare class FocusManager extends Subscribable<Listener> {
+      #private;
+  /**
+   * Thenable types which matches React's types for promises
+   *
+>  * React seemingly uses `.status`, `.value` and `.reason` properties on a promises to optimistically 
+unwrap data from promises
+   *
+   * @see https://github.com/facebook/react/blob/main/packages/shared/ReactTypes.js#L112-L138
+   * @see https://github.com/facebook/react/blob/4f604941569d2e8947ce1460a0b2997e835f37b9/packages/reac
+t-debug-tools/src/ReactDebugHooks.js#L224-L227
+   */
+  declare interface Fulfilled<T> {
+>     status: 'fulfilled';
+      value: T;
+  }
+  
+      data: undefined;
+      error: TError;
+      isError: true;
+>     isPending: false;
+>     isLoading: false;
+>     isLoadingError: true;
+      isRefetchError: false;
+      isFetchNextPageError: false;
+      isFetchPreviousPageError: false;
+      isSuccess: false;
+      isPlaceholderData: false;
+>     status: 'error';
+  }
+  export { InfiniteQueryObserverLoadingErrorResult }
+  export { InfiniteQueryObserverLoadingErrorResult as InfiniteQueryObserverLoadingErrorResult_alias_1 }
+      data: undefined;
+      error: null;
+      isError: false;
+>     isPending: true;
+>     isLoading: true;
+>     isLoadingError: false;
+      isRefetchError: false;
+      isFetchNextPageError: false;
+      isFetchPreviousPageError: false;
+      isSuccess: false;
+      isPlaceholderData: false;
+>     status: 'pending';
+  }
+  export { InfiniteQueryObserverLoadingResult }
+  export { InfiniteQueryObserverLoadingResult as InfiniteQueryObserverLoadingResult_alias_1 }
+      data: undefined;
+      error: null;
+      isError: false;
+>     isPending: true;
+>     isLoadingError: false;
+      isRefetchError: false;
+      isFetchNextPageError: false;
+      isFetchPreviousPageError: false;
+      isSuccess: false;
+      isPlaceholderData: false;
+>     status: 'pending';
+  }
+  export { InfiniteQueryObserverPendingResult }
+  export { InfiniteQueryObserverPendingResult as InfiniteQueryObserverPendingResult_alias_1 }
+      data: TData;
+      isError: false;
+      error: null;
+>     isPending: false;
+>     isLoading: false;
+>     isLoadingError: false;
+      isRefetchError: false;
+      isSuccess: true;
+      isPlaceholderData: true;
+      isFetchNextPageError: false;
+      isFetchPreviousPageError: false;
+>     status: 'success';
+  }
+  export { InfiniteQueryObserverPlaceholderResult }
+  export { InfiniteQueryObserverPlaceholderResult as InfiniteQueryObserverPlaceholderResult_alias_1 }
+      data: TData;
+      error: TError;
+      isError: true;
+>     isPending: false;
+>     isLoading: false;
+>     isLoadingError: false;
+      isRefetchError: true;
+      isSuccess: false;
+      isPlaceholderData: false;
+>     status: 'error';
+  }
+  export { InfiniteQueryObserverRefetchErrorResult }
+  export { InfiniteQueryObserverRefetchErrorResult as InfiniteQueryObserverRefetchErrorResult_alias_1 }
+      data: TData;
+      error: null;
+      isError: false;
+>     isPending: false;
+>     isLoading: false;
+>     isLoadingError: false;
+      isRefetchError: false;
+      isFetchNextPageError: false;
+      isFetchPreviousPageError: false;
+      isSuccess: true;
+      isPlaceholderData: false;
+>     status: 'success';
+  }
+  export { InfiniteQueryObserverSuccessResult }
+  export { InfiniteQueryObserverSuccessResult as InfiniteQueryObserverSuccessResult_alias_1 }
+       */
+      mutationKey?: TuplePrefixes<MutationKey>;
+      /**
+>      * Filter by mutation status
+       */
+>     status?: MutationStatus;
+  }
+  export { MutationFilters }
+  export { MutationFilters as MutationFilters_alias_1 }
+      setOptions(options: MutationObserverOptions<TData, TError, TVariables, TOnMutateResult>): void;
+      protected onUnsubscribe(): void;
+      onMutationUpdate(action: Action<TData, TError, TVariables, TOnMutateResult>): void;
+>     getCurrentResult(): MutationObserverResult<TData, TError, TVariables, TOnMutateResult>;
+      reset(): void;
+      mutate(variables: TVariables, options?: MutateOptions<TData, TError, TVariables, 
+TOnMutateResult>): Promise<TData>;
+  }
+       */
+      error: TError | null;
+      /**
+>      * A boolean variable derived from `status`.
+       * - `true` if the last mutation attempt resulted in an error.
+       */
+      isError: boolean;
+      /**
+>      * A boolean variable derived from `status`.
+       * - `true` if the mutation is in its initial state prior to executing.
+       */
+      isIdle: boolean;
+      /**
+>      * A boolean variable derived from `status`.
+       * - `true` if the mutation is currently executing.
+       */
+>     isPending: boolean;
+      /**
+>      * A boolean variable derived from `status`.
+       * - `true` if the last mutation attempt was successful.
+       */
+      isSuccess: boolean;
+      /**
+>      * The status of the mutation.
+       * - Will be:
+>      *   - `idle` initial status prior to the mutation function executing.
+       *   - `pending` if the mutation is currently executing.
+       *   - `error` if the last mutation attempt resulted in an error.
+       *   - `success` if the last mutation attempt was successful.
+       */
+>     status: MutationStatus;
+      /**
+       * The mutation function you can call with variables to trigger the mutation and optionally 
+hooks on additional callback options.
+       * @param variables - The variables object to pass to the `mutationFn`.
+      variables: TVariables;
+      isError: true;
+      isIdle: false;
+>     isPending: false;
+      isSuccess: false;
+>     status: 'error';
+  }
+  export { MutationObserverErrorResult }
+  export { MutationObserverErrorResult as MutationObserverErrorResult_alias_1 }
+  
+> declare interface MutationObserverIdleResult<TData = unknown, TError = DefaultError, TVariables = 
+void, TOnMutateResult = unknown> extends MutationObserverBaseResult<TData, TError, TVariables, 
+TOnMutateResult> {
+      data: undefined;
+      variables: undefined;
+      error: null;
+      isError: false;
+      isIdle: true;
+>     isPending: false;
+      isSuccess: false;
+>     status: 'idle';
+  }
+> export { MutationObserverIdleResult }
+> export { MutationObserverIdleResult as MutationObserverIdleResult_alias_1 }
+  
+> declare type MutationObserverListener<TData, TError, TVariables, TOnMutateResult> = (result: 
+MutationObserverResult<TData, TError, TVariables, TOnMutateResult>) => void;
+  
+  declare interface MutationObserverLoadingResult<TData = unknown, TError = DefaultError, TVariables = 
+void, TOnMutateResult = unknown> extends MutationObserverBaseResult<TData, TError, TVariables, 
+TOnMutateResult> {
+      data: undefined;
+      error: null;
+      isError: false;
+      isIdle: false;
+>     isPending: true;
+      isSuccess: false;
+>     status: 'pending';
+  }
+  export { MutationObserverLoadingResult }
+  export { MutationObserverLoadingResult as MutationObserverLoadingResult_alias_1 }
+  export { MutationObserverOptions }
+  export { MutationObserverOptions as MutationObserverOptions_alias_1 }
+  
+> declare type MutationObserverResult<TData = unknown, TError = DefaultError, TVariables = void, 
+TOnMutateResult = unknown> = MutationObserverIdleResult<TData, TError, TVariables, TOnMutateResult> | 
+MutationObserverLoadingResult<TData, TError, TVariables, TOnMutateResult> | 
+MutationObserverErrorResult<TData, TError, TVariables, TOnMutateResult> | 
+MutationObserverSuccessResult<TData, TError, TVariables, TOnMutateResult>;
+> export { MutationObserverResult }
+> export { MutationObserverResult as MutationObserverResult_alias_1 }
+  
+  declare interface MutationObserverSuccessResult<TData = unknown, TError = DefaultError, TVariables = 
+void, TOnMutateResult = unknown> extends MutationObserverBaseResult<TData, TError, TVariables, 
+TOnMutateResult> {
+      data: TData;
+      variables: TVariables;
+      isError: false;
+      isIdle: false;
+>     isPending: false;
+      isSuccess: true;
+>     status: 'success';
+  }
+  export { MutationObserverSuccessResult }
+  export { MutationObserverSuccessResult as MutationObserverSuccessResult_alias_1 }
+      failureCount: number;
+      failureReason: TError | null;
+      isPaused: boolean;
+>     status: MutationStatus;
+      variables: TVariables | undefined;
+      submittedAt: number;
+  }
+  export { MutationState }
+  export { MutationState as MutationState_alias_1 }
+  
+> declare type MutationStatus = 'idle' | 'pending' | 'success' | 'error';
+> export { MutationStatus }
+> export { MutationStatus as MutationStatus_alias_1 }
+  
+  declare type NetworkMode = 'online' | 'always' | 'offlineFirst';
+  export { NetworkMode }
+  }
+  
+  declare interface Pending<T> {
+>     status: 'pending';
+      /**
+       * Resolve the promise with a value.
+       * Will remove the `resolve` and `reject` properties from the promise.
+       */
+      stale?: boolean;
+      /**
+>      * Include queries matching their fetchStatus
+       */
+>     fetchStatus?: FetchStatus;
+  }
+  export { QueryFilters }
+  export { QueryFilters as QueryFilters_alias_1 }
+       */
+      data: TData | undefined;
+      /**
+>      * The timestamp for when the query most recently returned the `status` as `"success"`.
+       */
+      dataUpdatedAt: number;
+      /**
+       */
+      error: TError | null;
+      /**
+>      * The timestamp for when the query most recently returned the `status` as `"error"`.
+       */
+      errorUpdatedAt: number;
+      /**
+       */
+      errorUpdateCount: number;
+      /**
+>      * A derived boolean from the `status` variable, provided for convenience.
+       * - `true` if the query attempt resulted in an error.
+       */
+      isError: boolean;
+       */
+      isFetchedAfterMount: boolean;
+      /**
+>      * A derived boolean from the `fetchStatus` variable, provided for convenience.
+       * - `true` whenever the `queryFn` is executing, which includes initial `pending` as well as 
+background refetch.
+       */
+      isFetching: boolean;
+      /**
+       * Is `true` whenever the first fetch for a query is in-flight.
+>      * - Is the same as `isFetching && isPending`.
+       */
+>     isLoading: boolean;
+      /**
+       * Will be `pending` if there's no cached data and no query attempt was finished yet.
+       */
+>     isPending: boolean;
+      /**
+       * Will be `true` if the query failed while fetching for the first time.
+       */
+>     isLoadingError: boolean;
+      /**
+>      * @deprecated `isInitialLoading` is being deprecated in favor of `isLoading`
+       * and will be removed in the next major version.
+       */
+      isInitialLoading: boolean;
+      /**
+>      * A derived boolean from the `fetchStatus` variable, provided for convenience.
+       * - The query wanted to fetch, but has been `paused`.
+       */
+      isPaused: boolean;
+      isRefetchError: boolean;
+      /**
+       * Is `true` whenever a background refetch is in-flight, which _does not_ include initial 
+`pending`.
+>      * - Is the same as `isFetching && !isPending`.
+       */
+      isRefetching: boolean;
+      /**
+       */
+      isStale: boolean;
+      /**
+>      * A derived boolean from the `status` variable, provided for convenience.
+       * - `true` if the query has received a response with no errors and is ready to display its data.
+       */
+      isSuccess: boolean;
+       */
+      refetch: (options?: RefetchOptions) => Promise<QueryObserverResult<TData, TError>>;
+      /**
+>      * The status of the query.
+       * - Will be:
+       *   - `pending` if there's no cached data and no query attempt was finished yet.
+       *   - `error` if the query attempt resulted in an error.
+       *   - `success` if the query has received a response with no errors and is ready to display its 
+data.
+       */
+>     status: QueryStatus;
+      /**
+>      * The fetch status of the query.
+       * - `fetching`: Is `true` whenever the queryFn is executing, which includes initial `pending` 
+as well as background refetch.
+       * - `paused`: The query wanted to fetch, but has been `paused`.
+       * - `idle`: The query is not fetching.
+       * - See [Network 
+Mode](https://tanstack.com/query/latest/docs/framework/react/guides/network-mode) for more information.
+       */
+>     fetchStatus: FetchStatus;
+      /**
+       * A stable promise that will be resolved with the data of the query.
+       * Requires the `experimental_prefetchInRender` feature flag to be enabled.
+      data: undefined;
+      error: TError;
+      isError: true;
+>     isPending: false;
+>     isLoading: false;
+>     isLoadingError: true;
+      isRefetchError: false;
+      isSuccess: false;
+      isPlaceholderData: false;
+>     status: 'error';
+  }
+  export { QueryObserverLoadingErrorResult }
+  export { QueryObserverLoadingErrorResult as QueryObserverLoadingErrorResult_alias_1 }
+      data: undefined;
+      error: null;
+      isError: false;
+>     isPending: true;
+>     isLoading: true;
+>     isLoadingError: false;
+      isRefetchError: false;
+      isSuccess: false;
+      isPlaceholderData: false;
+>     status: 'pending';
+  }
+  export { QueryObserverLoadingResult }
+  export { QueryObserverLoadingResult as QueryObserverLoadingResult_alias_1 }
+       */
+      select?: (data: TQueryData) => TData;
+      /**
+>      * If set to `true`, the query will suspend when `status === 'pending'`
+>      * and throw errors when `status === 'error'`.
+       * Defaults to `false`.
+       */
+      suspense?: boolean;
+      data: undefined;
+      error: null;
+      isError: false;
+>     isPending: true;
+>     isLoadingError: false;
+      isRefetchError: false;
+      isSuccess: false;
+      isPlaceholderData: false;
+>     status: 'pending';
+  }
+  export { QueryObserverPendingResult }
+  export { QueryObserverPendingResult as QueryObserverPendingResult_alias_1 }
+      data: TData;
+      isError: false;
+      error: null;
+>     isPending: false;
+>     isLoading: false;
+>     isLoadingError: false;
+      isRefetchError: false;
+      isSuccess: true;
+      isPlaceholderData: true;
+>     status: 'success';
+  }
+  export { QueryObserverPlaceholderResult }
+  export { QueryObserverPlaceholderResult as QueryObserverPlaceholderResult_alias_1 }
+      data: TData;
+      error: TError;
+      isError: true;
+>     isPending: false;
+>     isLoading: false;
+>     isLoadingError: false;
+      isRefetchError: true;
+      isSuccess: false;
+      isPlaceholderData: false;
+>     status: 'error';
+  }
+  export { QueryObserverRefetchErrorResult }
+  export { QueryObserverRefetchErrorResult as QueryObserverRefetchErrorResult_alias_1 }
+      data: TData;
+      error: null;
+      isError: false;
+>     isPending: false;
+>     isLoading: false;
+>     isLoadingError: false;
+      isRefetchError: false;
+      isSuccess: true;
+      isPlaceholderData: false;
+>     status: 'success';
+  }
+  export { QueryObserverSuccessResult }
+  export { QueryObserverSuccessResult as QueryObserverSuccessResult_alias_1 }
+      fetchFailureReason: TError | null;
+      fetchMeta: FetchMeta | null;
+      isInvalidated: boolean;
+>     status: QueryStatus;
+>     fetchStatus: FetchStatus;
+  }
+  export { QueryState }
+  export { QueryState as QueryState_alias_1 }
+  
+> declare type QueryStatus = 'pending' | 'error' | 'success';
+> export { QueryStatus }
+> export { QueryStatus as QueryStatus_alias_1 }
+  
+  export declare interface QueryStore {
+      has: (queryHash: string) => boolean;
+  export { Register as Register_alias_1 }
+  
+  declare interface Rejected {
+>     status: 'rejected';
+      reason: unknown;
+  }
+  
+      continueRetry: () => void;
+      canStart: () => boolean;
+      start: () => Promise<TData>;
+>     status: () => 'pending' | 'resolved' | 'rejected';
+  }
+  
+  declare interface RetryerConfig<TData = unknown, TError = DefaultError> {
+   * This is a helper function to create a query function that streams data from an AsyncIterable.
+   * Data will be an Array of all the chunks received.
+   * The query will be in a 'pending' state until the first chunk of data is received, but will go to 
+'success' after that.
+>  * The query will stay in fetchStatus 'fetching' until the stream ends.
+   * @param queryFn - The function that returns an AsyncIterable to stream data from.
+   * @param refetchMode - Defines how re-fetches are handled.
+   * Defaults to `'reset'`, erases all data and puts the query back into `pending` state.
+   * This function takes a Promise-like input and detects whether the data
+   * is synchronously available or not.
+   *
+>  * It does not inspect .status, .value or .reason properties of the promise,
+>  * as those are not always available, and the .status of React's promises
+   * should not be considered part of the public API.
+   */
+  export declare function tryResolveSync(promise: Promise<unknown> | Thenable<unknown>): {
+
+

@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #F5F7F5;
+    --foreground: #1E302A;
+    --card: #FFFFFF;
+    --card-foreground: #1E302A;
+    --popover: #FFFFFF;
+    --popover-foreground: #1E302A;
+    --muted: #F5F7F5;
+    --muted-foreground: #4B5F54;
+    --accent: #D62828;
+    --accent-foreground: #FFFFFF;
+    --destructive: #D62828;
+    --destructive-foreground: #FFFFFF;
+    --border: #D1D5DB;
+    --input: #E5E7EB;
+    --primary: #008753;
+    --primary-foreground: #FFFFFF;
+    --secondary: #FFFFFF;
+    --secondary-foreground: #1E302A;
+    --ring: #008753;
+    --surface: #F5F7F5;
+    --success: #E8F7F1;
+    --success-foreground: #006f45;
+    --danger: #FDECEC;
+    --danger-foreground: #B42318;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 150 20% 10%;
+    --foreground: 145 20% 96%;
+    --card: 150 18% 14%;
+    --card-foreground: 145 20% 96%;
+    --popover: 150 18% 14%;
+    --popover-foreground: 145 20% 96%;
+    --muted: 150 16% 18%;
+    --muted-foreground: 145 12% 72%;
+    --accent: #D62828;
+    --accent-foreground: #FFFFFF;
+    --destructive: #D62828;
+    --destructive-foreground: #FFFFFF;
+    --border: 150 16% 24%;
+    --input: 150 16% 24%;
+    --primary: #008753;
+    --primary-foreground: #FFFFFF;
+    --secondary: 150 18% 14%;
+    --secondary-foreground: 145 20% 96%;
+    --ring: #008753;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  input::placeholder,
+  textarea::placeholder,
+  select::placeholder {
+    color: var(--muted-foreground);
+    opacity: 1;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-foreground/50;
+}
+
+/* Smooth transitions */
+.transition-smooth {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+/* Utility classes */
+.glass {
+  @apply backdrop-blur-md bg-white/10;
+}
+
+.glass-dark {
+  @apply backdrop-blur-md bg-black/10;
+}
+
+.gradient-primary {
+  @apply bg-gradient-to-r from-[#008753] to-[#00A86B];
+}
+
+.gradient-accent {
+  @apply bg-gradient-to-r from-[#D62828] to-[#EF4444];
+}

@@ -1,0 +1,38 @@
+"use client"
+
+import React, { useEffect, useState } from "react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { ThemeProvider } from "next-themes"
+import { useAuthStore } from "@/store/auth"
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 5 * 60 * 1000,
+    },
+  },
+})
+
+export function Providers({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+  const { setHydrated } = useAuthStore()
+
+  useEffect(() => {
+    setMounted(true)
+    setHydrated(true)
+  }, [setHydrated])
+
+  if (!mounted) {
+    return null
+  }
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        {children}
+      </ThemeProvider>
+    </QueryClientProvider>
+  )
+}
