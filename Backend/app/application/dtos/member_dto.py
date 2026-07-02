@@ -34,6 +34,21 @@ class MemberRegisterRequest(CamelModel):
     expiry_months: int = 12
 
 
+class MemberResubmitRequest(CamelModel):
+    """Member resubmission request"""
+    email: EmailStr
+    first_name: str
+    last_name: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    notes: Optional[str] = None
+    date_of_birth: Optional[str] = Field(None, description="Birth date in MM-DD format")
+    membership_type: MembershipType = MembershipType.FULL
+    membership_tier: MembershipTier = MembershipTier.STANDARD
+    expiry_months: int = 12
+    comment: Optional[str] = None
+
+
 class MemberUpdateProfileRequest(CamelModel):
     """Update member profile request"""
     phone: Optional[str] = None

@@ -406,6 +406,8 @@ class UserProfileResponse(CamelModel):
     status: str = Field(description="User status")
     membership_status: Optional[str] = Field(None, description="Membership status")
     membership_number: Optional[str] = Field(None, description="Membership number")
+    membership_review_comments: Optional[str] = Field(None, description="Latest review or rejection reason")
+    membership_rejected_at: Optional[datetime] = Field(None, description="Rejection timestamp")
     qr_token: Optional[str] = Field(None, description="Membership QR token")
     last_login_at: Optional[datetime] = Field(None, description="Last login time")
     created_at: datetime = Field(description="Account creation time")

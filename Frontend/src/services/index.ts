@@ -1,12 +1,19 @@
 import { apiClient } from "@/lib/api-client"
-import { API_ENDPOINTS } from "@/lib/config"
+import { API_CONFIG, API_ENDPOINTS } from "@/lib/config"
 import { Meeting, Activity, Document, PaginatedResponse } from "@/types"
+
+const resolveUrl = (value?: string | null) => {
+  if (!value) return value ?? ""
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.startsWith("/")) return `${API_CONFIG.baseURL}${value}`
+  return `${API_CONFIG.baseURL}/${value}`
+}
 
 const normalizeDocument = (document: any): Document => ({
   id: document.id,
   title: document.title,
   description: document.description,
-  fileUrl: document.fileUrl ?? document.file_url,
+  fileUrl: resolveUrl(document.fileUrl ?? document.file_url),
   fileSize: document.fileSize ?? document.file_size,
   fileType: document.fileType ?? document.file_type,
   category: document.category,
@@ -126,6 +133,18 @@ export const documentService = {
       API_ENDPOINTS.documents.get.replace(":id", documentId)
     )
     return normalizeDocument(payload)
+  },
+
+  async getByUserId(userId: string): Promise<Document[]> {
+    const payload = await apiClient.get<any>(
+      API_ENDPOINTS.documents.byUser.replace(":userId", userId)
+    )
+
+    if (!Array.isArray(payload)) {
+      return []
+    }
+
+    return payload.map(normalizeDocument)
   },
 
   async upload(file: File, category: string): Promise<Document> {

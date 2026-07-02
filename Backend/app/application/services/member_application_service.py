@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional, List
 from app.domain.services.member_service import MemberService
 from app.application.dtos.member_dto import (
-    MemberRegisterRequest, MemberUpdateProfileRequest, MemberRenewRequest,
+    MemberRegisterRequest, MemberResubmitRequest, MemberUpdateProfileRequest, MemberRenewRequest,
     MemberUpgradeTierRequest, MemberResponse, MemberListResponse,
     MemberStatisticsResponse, MembershipExpiringResponse, MemberActivityResponse,
     MembershipActionRequest, MembershipAuditEntryResponse, AddressResponse
@@ -13,7 +13,7 @@ from app.domain.models.member import Member, MembershipStatus, MembershipType
 from app.domain.models.digital_identity import UserRole
 from app.domain.services.identity_service import IdentityService
 from app.infrastructure.persistence.identity_repository import DigitalIdentityRepository
-from app.common.exceptions import ValidationError
+from app.common.exceptions import ValidationError, NotFoundError
 from app.common.models.value_objects import Email
 
 
@@ -184,6 +184,13 @@ class MemberApplicationService:
             profile_photo_url=member.profile_photo_url
         )
 
+    async def _ensure_identity_for_member(self, member: Member):
+        """Create or refresh the member's identity so the QR token stays available after reactivation."""
+        try:
+            return await self.identity_service.regenerate_qr_token(member.user_id)
+        except NotFoundError:
+            return await self._issue_identity_for_member(member)
+
     async def reject_member(
         self,
         member_id: str,
@@ -196,6 +203,29 @@ class MemberApplicationService:
             member_id=member_id,
             approver_id=approver_id,
             approver_role=approver_role,
+            comment=request.comment
+        )
+        return self._member_to_response(member)
+
+    async def resubmit_member(
+        self,
+        member_id: str,
+        request: MemberResubmitRequest
+    ) -> MemberResponse:
+        """Resubmit a rejected membership application"""
+        email = Email(value=request.email)
+        member = await self.member_service.resubmit_member(
+            member_id=member_id,
+            email=email,
+            first_name=request.first_name,
+            last_name=request.last_name,
+            phone=request.phone,
+            address=request.address,
+            notes=request.notes,
+            date_of_birth=request.date_of_birth,
+            membership_type=request.membership_type,
+            membership_tier=request.membership_tier,
+            expiry_months=request.expiry_months,
             comment=request.comment
         )
         return self._member_to_response(member)
@@ -215,6 +245,18 @@ class MemberApplicationService:
             comment=request.comment
         )
         member = self._apply_member_status(member, MembershipStatus.ACTIVE)
+        try:
+            identity = await self._ensure_identity_for_member(member)
+            if member.audit_log:
+                member.audit_log[-1].metadata.update({
+                    "membership_id": identity.membership_id,
+                    "qr_token": identity.qr_token,
+                    "card_status": identity.card_status.value,
+                })
+                await self.member_service.member_repository.save(member)
+        except ValidationError as exc:
+            if "already exists" not in str(exc).lower():
+                raise
         return self._member_to_response(member)
 
     async def update_profile(
@@ -325,7 +367,14 @@ class MemberApplicationService:
         member = await self.member_service.activate_member(member_id)
         member = self._apply_member_status(member, MembershipStatus.ACTIVE)
         try:
-            await self._issue_identity_for_member(member)
+            identity = await self._ensure_identity_for_member(member)
+            if member.audit_log:
+                member.audit_log[-1].metadata.update({
+                    "membership_id": identity.membership_id,
+                    "qr_token": identity.qr_token,
+                    "card_status": identity.card_status.value,
+                })
+                await self.member_service.member_repository.save(member)
         except ValidationError as exc:
             if "already exists" not in str(exc).lower():
                 raise
@@ -465,86 +514,88 @@ class MemberApplicationService:
     
     def _get_identity_metadata(self, member) -> dict:
         """Extract identity metadata from the latest audit entry for the member."""
-        if not member.audit_log:
+        if not getattr(member, "audit_log", None):
             return {}
         last_entry = member.audit_log[-1]
+        metadata = getattr(last_entry, "metadata", None) or {}
         return {
-            "membership_id": last_entry.metadata.get("membership_id"),
-            "qr_token": last_entry.metadata.get("qr_token"),
-            "card_status": last_entry.metadata.get("card_status")
+            "membership_id": metadata.get("membership_id"),
+            "qr_token": metadata.get("qr_token"),
+            "card_status": metadata.get("card_status")
         }
 
     def _member_to_response(self, member) -> MemberResponse:
         """Convert member to response DTO"""
         identity_metadata = self._get_identity_metadata(member)
+        audit_log = getattr(member, "audit_log", None) or []
 
         return MemberResponse(
-            id=str(member.id),
-            user_id=member.user_id,
-            email=str(member.email),
-            phone=str(member.phone) if member.phone else None,
-            first_name=member.first_name,
-            last_name=member.last_name,
-            date_of_birth=member.date_of_birth,
-            full_name=member.full_name,
-            membership_number=member.membership_number,
-            membership_type=member.membership_type,
-            membership_tier=member.membership_tier,
-            status=member.status,
-            joined_date=member.joined_date,
-            membership_expiry_date=member.membership_expiry_date,
-            requested_expiry_months=member.requested_expiry_months,
-            submitted_at=member.submitted_at,
-            approved_at=member.approved_at,
-            rejected_at=member.rejected_at,
-            approver_id=member.approver_id,
-            approver_role=member.approver_role,
-            review_comments=member.review_comments,
+            id=str(getattr(member, "id", "")),
+            user_id=getattr(member, "user_id", None),
+            email=str(getattr(member, "email", "")),
+            phone=str(getattr(member, "phone", None)) if getattr(member, "phone", None) else None,
+            first_name=getattr(member, "first_name", None),
+            last_name=getattr(member, "last_name", None),
+            date_of_birth=getattr(member, "date_of_birth", None),
+            full_name=getattr(member, "full_name", None) or " ".join(filter(None, [getattr(member, "first_name", None), getattr(member, "last_name", None)])),
+            membership_number=getattr(member, "membership_number", None),
+            membership_type=getattr(member, "membership_type", None),
+            membership_tier=getattr(member, "membership_tier", None),
+            status=getattr(member, "status", None),
+            joined_date=getattr(member, "joined_date", None),
+            membership_expiry_date=getattr(member, "membership_expiry_date", None),
+            requested_expiry_months=getattr(member, "requested_expiry_months", 0),
+            submitted_at=getattr(member, "submitted_at", None),
+            approved_at=getattr(member, "approved_at", None),
+            rejected_at=getattr(member, "rejected_at", None),
+            approver_id=getattr(member, "approver_id", None),
+            approver_role=getattr(member, "approver_role", None),
+            review_comments=getattr(member, "review_comments", None),
             audit_log=[
                 MembershipAuditEntryResponse(
-                    timestamp=entry.timestamp,
-                    action=entry.action.value,
-                    performed_by_user_id=entry.performed_by_user_id,
-                    performed_by_role=entry.performed_by_role,
-                    comment=entry.comment,
-                    resulting_status=entry.resulting_status,
-                    metadata=entry.metadata or {}
+                    timestamp=getattr(entry, "timestamp", None),
+                    action=getattr(getattr(entry, "action", None), "value", getattr(entry, "action", None)),
+                    performed_by_user_id=getattr(entry, "performed_by_user_id", None),
+                    performed_by_role=getattr(entry, "performed_by_role", None),
+                    comment=getattr(entry, "comment", None),
+                    resulting_status=getattr(entry, "resulting_status", None),
+                    metadata=getattr(entry, "metadata", None) or {}
                 )
-                for entry in member.audit_log
+                for entry in audit_log
             ],
-            is_membership_expired=member.is_membership_expired,
-            days_until_expiry=member.days_until_expiry,
-            bio=member.bio,
-            profile_photo_url=member.profile_photo_url,
-            document_ids=[str(document_id) for document_id in member.document_ids],
-            address=member.address,
-            notes=member.notes,
-            organization=member.organization,
-            position=member.position,
-            department=member.department,
+            is_membership_expired=getattr(member, "is_membership_expired", False),
+            days_until_expiry=getattr(member, "days_until_expiry", None),
+            bio=getattr(member, "bio", None),
+            profile_photo_url=getattr(member, "profile_photo_url", None),
+            document_ids=[str(document_id) for document_id in getattr(member, "document_ids", [])],
+            address=getattr(member, "address", None),
+            notes=getattr(member, "notes", None),
+            organization=getattr(member, "organization", None),
+            position=getattr(member, "position", None),
+            department=getattr(member, "department", None),
             addresses=[
                 AddressResponse(
-                    street=address.street,
-                    city=address.city,
-                    state=address.state,
-                    zip_code=address.zip_code,
-                    country=address.country,
+                    street=getattr(address, "street", None),
+                    city=getattr(address, "city", None),
+                    state=getattr(address, "state", None),
+                    zip_code=getattr(address, "zip_code", None),
+                    country=getattr(address, "country", None),
                 )
-                for address in member.addresses
+                for address in getattr(member, "addresses", [])
             ],
-            emergency_contact_name=member.emergency_contact_name,
-            emergency_contact_phone=str(member.emergency_contact_phone) if member.emergency_contact_phone else None,
-            newsletter_subscription=member.newsletter_subscription,
-            event_notifications=member.event_notifications,
-            communication_language=member.communication_language,
-            last_active_at=member.last_active_at,
-            meetings_attended=member.meetings_attended,
-            activities_participated=member.activities_participated,
-            documents_contributed=member.documents_contributed,
-            total_contribution_hours=member.total_contribution_hours,
+            emergency_contact_name=getattr(member, "emergency_contact_name", None),
+            emergency_contact_phone=str(getattr(member, "emergency_contact_phone", None)) if getattr(member, "emergency_contact_phone", None) else None,
+            newsletter_subscription=getattr(member, "newsletter_subscription", True),
+            event_notifications=getattr(member, "event_notifications", True),
+            communication_language=getattr(member, "communication_language", "en"),
+            last_active_at=getattr(member, "last_active_at", None),
+            meetings_attended=getattr(member, "meetings_attended", 0),
+            activities_participated=getattr(member, "activities_participated", 0),
+            documents_contributed=getattr(member, "documents_contributed", 0),
+            total_contribution_hours=getattr(member, "total_contribution_hours", 0.0),
             membership_id=identity_metadata.get("membership_id"),
             qr_token=identity_metadata.get("qr_token"),
             card_status=identity_metadata.get("card_status"),
-            created_at=member.created_at,
-            updated_at=member.updated_at
+            created_at=getattr(member, "created_at", None),
+            updated_at=getattr(member, "updated_at", None)
         )

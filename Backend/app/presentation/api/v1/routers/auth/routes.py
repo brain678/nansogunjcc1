@@ -145,6 +145,16 @@ async def login(
 
         qr_token = await _resolve_qr_token_for_user(auth_service, str(user.id))
         
+        membership_review_comments = None
+        membership_rejected_at = None
+        try:
+            member = await auth_service.member_repository.find_by_user_id(str(user.id))
+            if member:
+                membership_review_comments = member.review_comments
+                membership_rejected_at = member.rejected_at
+        except Exception:
+            pass
+
         user_profile = UserProfileResponse(
             id=str(user.id),
             email=str(user.email),
@@ -157,6 +167,8 @@ async def login(
             status=user.status.value if hasattr(user.status, 'value') else str(user.status),
             membership_status=membership_status,
             membership_number=membership_number,
+            membership_review_comments=membership_review_comments,
+            membership_rejected_at=membership_rejected_at,
             qr_token=qr_token,
             last_login_at=user.last_login_at,
             created_at=user.created_at
@@ -325,11 +337,15 @@ async def get_current_user(
         membership_number = payload.get("membership_number")
 
         qr_token = await _resolve_qr_token_for_user(auth_service, str(user.id))
+        membership_review_comments = None
+        membership_rejected_at = None
         try:
             member = await auth_service.member_repository.find_by_user_id(str(user.id))
             if member:
                 membership_status = member.status.value
                 membership_number = member.membership_number
+                membership_review_comments = member.review_comments
+                membership_rejected_at = member.rejected_at
         except Exception:
             pass
         
@@ -345,6 +361,8 @@ async def get_current_user(
             status=user.status.value if hasattr(user.status, 'value') else str(user.status),
             membership_status=membership_status,
             membership_number=membership_number,
+            membership_review_comments=membership_review_comments,
+            membership_rejected_at=membership_rejected_at,
             qr_token=qr_token,
             last_login_at=user.last_login_at,
             created_at=user.created_at
@@ -374,11 +392,15 @@ async def update_current_user(
 
         membership_status = None
         membership_number = None
+        membership_review_comments = None
+        membership_rejected_at = None
         try:
             member = await auth_service.member_repository.find_by_user_id(str(user.id))
             if member:
                 membership_status = member.status.value
                 membership_number = member.membership_number
+                membership_review_comments = member.review_comments
+                membership_rejected_at = member.rejected_at
         except Exception:
             pass
 
@@ -396,6 +418,8 @@ async def update_current_user(
             status=user.status,
             membership_status=membership_status,
             membership_number=membership_number,
+            membership_review_comments=membership_review_comments,
+            membership_rejected_at=membership_rejected_at,
             qr_token=qr_token,
             last_login_at=user.last_login_at,
             created_at=user.created_at
@@ -433,7 +457,7 @@ async def upload_profile_photo(
         contents = await photo.read()
         file_path.write_bytes(contents)
 
-        profile_url = f"{request.base_url}uploads/{filename}"
+        profile_url = f"/uploads/{filename}"
         update_request = UpdateUserRequest(profile_photo_url=profile_url)
         await user_service.update_user(user_id, update_request)
 

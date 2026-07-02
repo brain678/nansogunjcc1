@@ -39,6 +39,7 @@ class MembershipAuditAction(str, Enum):
     REQUESTED = "requested"
     APPROVED = "approved"
     REJECTED = "rejected"
+    RESUBMITTED = "resubmitted"
     SUSPENDED = "suspended"
     REACTIVATED = "reactivated"
     UPDATED = "updated"

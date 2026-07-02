@@ -54,6 +54,25 @@ export const useRejectMember = (): UseMutationResult<
   })
 }
 
+export const useResubmitMember = () => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: Parameters<typeof memberService.resubmitMember>[1] & { id: string; memberRecordId?: string }) => {
+      const { id, memberRecordId, ...rest } = payload
+      return memberService.resubmitMember(id, rest).then((member) => ({ member, memberRecordId }))
+    },
+    onSuccess: (result, variables) => {
+      const memberId = result.memberRecordId || variables.memberRecordId || variables.id
+      qc.setQueryData(["members", memberId], (current: any) =>
+        current ? { ...current, status: "pending", reviewComments: undefined, rejectedAt: undefined, approverId: undefined, approverRole: undefined } : current
+      )
+      qc.invalidateQueries({ queryKey: ["members", memberId] })
+      qc.invalidateQueries({ queryKey: ["members", "pending"] })
+      qc.invalidateQueries({ queryKey: ["members"] })
+    },
+  })
+}
+
 export const useAssignMemberRole = () => {
   const qc = useQueryClient()
 

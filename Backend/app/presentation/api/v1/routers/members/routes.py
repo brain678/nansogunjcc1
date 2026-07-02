@@ -5,6 +5,7 @@ from typing import Optional
 from app.application.services.member_application_service import MemberApplicationService
 from app.application.dtos.member_dto import (
     MemberRegisterRequest,
+    MemberResubmitRequest,
     MemberUpdateProfileRequest,
     MemberRenewRequest,
     MemberUpgradeTierRequest,
@@ -133,6 +134,30 @@ async def get_member(
 
 
 @router.get(
+    "/by-user/{user_id}",
+    response_model=MemberResponse,
+    summary="Get member by user ID",
+    description="Retrieve a member's details by their owning user ID"
+)
+async def get_member_by_user_id(
+    user_id: str,
+    current_user = Depends(get_current_user),
+    member_service: MemberApplicationService = Depends(get_member_service)
+) -> MemberResponse:
+    """Get member by user ID"""
+    try:
+        if str(current_user.id) != str(user_id):
+            require_permission(current_user, "members", "read", "any")
+        return await member_service.get_member_by_user_id(user_id)
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
     "/by-membership/{membership_number}",
     response_model=MemberResponse,
     summary="Get member by membership number",
@@ -234,6 +259,36 @@ async def reject_member(
         )
     except AppException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/{member_id}/resubmit",
+    response_model=MemberResponse,
+    summary="Resubmit a rejected membership application",
+    description="Allow a rejected member to resubmit their application"
+)
+async def resubmit_member(
+    member_id: str,
+    request: MemberResubmitRequest,
+    current_user = Depends(get_current_user),
+    member_service: MemberApplicationService = Depends(get_member_service)
+) -> MemberResponse:
+    """Resubmit a rejected membership application"""
+    try:
+        existing_member = await member_service.member_service.member_repository.get_by_id(member_id)
+        if not existing_member:
+            existing_member = await member_service.member_service.member_repository.find_by_user_id(member_id)
+        if not existing_member:
+            raise HTTPException(status_code=404, detail="Member not found")
+        if str(existing_member.user_id) != str(current_user.id):
+            require_permission(current_user, "members", "approve", "any")
+        return await member_service.resubmit_member(member_id=str(existing_member.id), request=request)
+    except AppException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

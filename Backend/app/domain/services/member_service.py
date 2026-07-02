@@ -163,12 +163,14 @@ class MemberService:
             raise EntityNotFoundError(f"Member not found: {member_id}")
         if member.status != MembershipStatus.PENDING:
             raise ValidationError("Only pending memberships can be rejected")
+        if not comment or not comment.strip():
+            raise ValidationError("A rejection reason is required")
 
         member.status = MembershipStatus.REJECTED
         member.rejected_at = datetime.utcnow()
         member.approver_id = approver_id
         member.approver_role = approver_role
-        member.review_comments = comment
+        member.review_comments = comment.strip()
         member.updated_at = datetime.utcnow()
 
         await self._append_audit_entry(
@@ -176,8 +178,60 @@ class MemberService:
             MembershipAuditAction.REJECTED,
             approver_id,
             approver_role,
-            comment,
+            comment.strip(),
             MembershipStatus.REJECTED
+        )
+        return await self.member_repository.save(member)
+
+    async def resubmit_member(
+        self,
+        member_id: str,
+        email: Email,
+        first_name: str,
+        last_name: str,
+        phone: Optional[str] = None,
+        address: Optional[str] = None,
+        notes: Optional[str] = None,
+        date_of_birth: Optional[str] = None,
+        membership_type: MembershipType = MembershipType.FULL,
+        membership_tier: MembershipTier = MembershipTier.STANDARD,
+        expiry_months: int = 12,
+        comment: Optional[str] = None
+    ) -> Member:
+        """Resubmit a rejected membership application"""
+        member = await self.member_repository.get_by_id(member_id)
+        if not member:
+            raise EntityNotFoundError(f"Member not found: {member_id}")
+        if member.status != MembershipStatus.REJECTED:
+            raise ValidationError("Only rejected memberships can be resubmitted")
+
+        member.email = email
+        member.first_name = first_name
+        member.last_name = last_name
+        member.phone = Phone(value=phone) if phone else None
+        member.address = address
+        member.notes = notes
+        member.date_of_birth = date_of_birth
+        member.membership_type = membership_type
+        member.membership_tier = membership_tier
+        member.requested_expiry_months = expiry_months
+
+        member.status = MembershipStatus.PENDING
+        member.approved_at = None
+        member.rejected_at = None
+        member.approver_id = None
+        member.approver_role = None
+        member.review_comments = None
+        member.updated_at = datetime.utcnow()
+        member.submitted_at = datetime.utcnow()
+
+        await self._append_audit_entry(
+            member,
+            MembershipAuditAction.RESUBMITTED,
+            member.user_id,
+            None,
+            comment.strip() if comment and comment.strip() else "Resubmitted application",
+            MembershipStatus.PENDING
         )
         return await self.member_repository.save(member)
 

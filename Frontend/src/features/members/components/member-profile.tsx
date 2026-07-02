@@ -12,6 +12,13 @@ import type { Document as MemberDocument } from "@/types"
 import { API_CONFIG } from "@/lib/config"
 import { FileText, Users, CheckCircle2, AlertTriangle, Download, X, QrCode } from "lucide-react"
 
+const resolveMediaUrl = (value?: string | null) => {
+  if (!value) return null
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.startsWith("/")) return `${API_CONFIG.baseURL}${value}`
+  return `${API_CONFIG.baseURL}/${value}`
+}
+
 export function MemberProfile() {
   const params = useParams()
   const memberId = params.id as string
@@ -35,6 +42,7 @@ export function MemberProfile() {
   const [previewDocument, setPreviewDocument] = useState<MemberDocument | null>(null)
   const [showSuspendModal, setShowSuspendModal] = useState(false)
   const [suspendReason, setSuspendReason] = useState("")
+  const [showRejectionReasonInput, setShowRejectionReasonInput] = useState(false)
 
   const renderDate = (dateValue?: string) =>
     dateValue ? new Date(dateValue).toLocaleDateString() : "Not available"
@@ -48,12 +56,7 @@ export function MemberProfile() {
   const renderBoolean = (value?: boolean) =>
     value === undefined ? "Not available" : value ? "Enabled" : "Disabled"
 
-  const resolveMediaUrl = (value?: string | null) => {
-    if (!value) return null
-    if (/^https?:\/\//i.test(value)) return value
-    if (value.startsWith("/")) return `${API_CONFIG.baseURL}${value}`
-    return `${API_CONFIG.baseURL}/${value}`
-  }
+  const resolveDocumentUrl = (value?: string | null) => resolveMediaUrl(value)
 
   const renderValue = (value: unknown, fallback = "Not provided") => {
     if (value === undefined || value === null || value === "") return fallback
@@ -61,15 +64,17 @@ export function MemberProfile() {
     return String(value)
   }
 
-  const documentIds = member?.documentIds ?? []
+  const rawDocumentIds = member?.documentIds
+  const documentIds = React.useMemo(() => rawDocumentIds ?? [], [rawDocumentIds])
   const targetUserId = member?.userId ?? memberId
   const memberRoles = ((member as any)?.roles ?? ((member as any)?.role ? [(member as any).role] : ["member"])) as string[]
   const orderedRoles = ["admin", "chairman", "general_secretary", "member"]
   const memberRole = (orderedRoles.find((role) => memberRoles.includes(role)) ?? memberRoles[0] ?? "member").replace(/_/g, " ")
   const normalizeDisplayRole = (role: string) => role.replace(/_/g, " ")
   const memberStatus = (member?.status ?? "").toString().toLowerCase()
-  const canReviewApplication = memberStatus === "pending"
-  const showQrCard = Boolean(member?.qrToken)
+  const latestAuditAction = (member?.auditLog?.[member.auditLog.length - 1]?.action ?? "").toString().toLowerCase()
+  const canReviewApplication = memberStatus === "pending" || latestAuditAction === "resubmitted"
+  const showQrCard = memberStatus === "active" && Boolean(member?.qrToken)
   const resolvedProfilePhotoUrl = resolveMediaUrl(member?.profilePhotoUrl)
   const qrCodeUrl = member?.qrToken
     ? `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(member.qrToken)}`
@@ -95,16 +100,17 @@ export function MemberProfile() {
       member?.profilePhotoUrl &&
       !list.some(
         (document) =>
-          document.fileUrl === member.profilePhotoUrl ||
+          resolveDocumentUrl(document.fileUrl) === resolveDocumentUrl(member.profilePhotoUrl) ||
           document.title.toLowerCase().includes("passport") ||
           document.title.toLowerCase().includes("profile")
       )
     ) {
+      const resolvedProfilePhotoUrl = resolveDocumentUrl(member.profilePhotoUrl)
       list.unshift({
         id: `passport-${member.id}`,
         title: "Passport / Profile Photo",
         description: "Passport photo uploaded during registration",
-        fileUrl: member.profilePhotoUrl,
+        fileUrl: resolvedProfilePhotoUrl ?? "",
         fileSize: 0,
         fileType: "image/jpeg",
         category: "passport",
@@ -129,9 +135,22 @@ export function MemberProfile() {
   }
 
   const handleReject = async () => {
+    if (!showRejectionReasonInput) {
+      setShowRejectionReasonInput(true)
+      setActionMessage(null)
+      return
+    }
+
+    const trimmedReason = internalNotes.trim()
+    if (!trimmedReason) {
+      setActionMessage("A rejection reason is required before rejecting this application.")
+      return
+    }
+
     try {
-      await rejectMemberMutation.mutateAsync({ id: memberId, comment: internalNotes })
+      await rejectMemberMutation.mutateAsync({ id: memberId, comment: trimmedReason })
       setActionMessage("Application rejected successfully.")
+      setShowRejectionReasonInput(false)
     } catch {
       setActionMessage("Failed to reject application.")
     }
@@ -219,9 +238,36 @@ export function MemberProfile() {
 
   useEffect(() => {
     if (!documentIds.length) {
-      setDocuments([])
-      setDocumentsError(null)
-      return
+      if (!targetUserId) {
+        setDocuments([])
+        setDocumentsError(null)
+        return
+      }
+
+      let isMounted = true
+      const loadFallbackDocuments = async () => {
+        setDocumentsLoading(true)
+        setDocumentsError(null)
+        try {
+          const legacyDocuments = await documentService.getByUserId(targetUserId)
+          if (isMounted) {
+            setDocuments(legacyDocuments)
+          }
+        } catch (error) {
+          if (isMounted) {
+            setDocumentsError(null)
+          }
+        } finally {
+          if (isMounted) {
+            setDocumentsLoading(false)
+          }
+        }
+      }
+
+      loadFallbackDocuments()
+      return () => {
+        isMounted = false
+      }
     }
 
     let isMounted = true
@@ -231,14 +277,20 @@ export function MemberProfile() {
       setDocumentsError(null)
 
       try {
-        const fetchedDocuments = await Promise.all(
+        const fetchedDocuments = await Promise.allSettled(
           documentIds.map((documentId) => documentService.getById(documentId))
         )
+        const successfulDocuments = fetchedDocuments
+          .filter((result): result is PromiseFulfilledResult<MemberDocument> => result.status === "fulfilled")
+          .map((result) => result.value)
 
         if (isMounted) {
-          setDocuments(fetchedDocuments)
+          setDocuments(successfulDocuments)
+          if (successfulDocuments.length !== documentIds.length) {
+            setDocumentsError("Some attached documents could not be loaded right now.")
+          }
         }
-      } catch {
+      } catch (error) {
         if (isMounted) {
           setDocumentsError("Unable to load attached documents right now.")
         }
@@ -254,7 +306,7 @@ export function MemberProfile() {
     return () => {
       isMounted = false
     }
-  }, [documentIds.join(",")])
+  }, [documentIds, targetUserId])
 
   if (isLoading) {
     return (
@@ -340,7 +392,7 @@ export function MemberProfile() {
             <div className="overflow-hidden rounded-2xl border border-border bg-muted/40 p-2">
               {(() => {
                 const fileType = previewDocument.fileType ?? ""
-                const fileUrl = previewDocument.fileUrl ?? ""
+                const fileUrl = resolveDocumentUrl(previewDocument.fileUrl) ?? ""
 
                 if (fileType.startsWith("image/")) {
                   return (
@@ -348,6 +400,10 @@ export function MemberProfile() {
                       src={fileUrl}
                       alt={previewDocument.title}
                       className="max-h-[70vh] w-full object-contain"
+                        onError={(event) => {
+                          const target = event.currentTarget as HTMLImageElement
+                          target.style.display = "none"
+                        }}
                     />
                   )
                 }
@@ -584,12 +640,21 @@ export function MemberProfile() {
                           </a>
                         </div>
 
-                        {isPhoto ? (
+                        {isPhoto && document.fileUrl ? (
                           <div className="mt-4 overflow-hidden rounded-xl border border-border bg-background/80 p-2">
                             <img
-                              src={document.fileUrl}
+                              src={resolveDocumentUrl(document.fileUrl) || ""}
                               alt={document.title}
                               className="max-h-80 w-full rounded-lg object-contain"
+                              crossOrigin="anonymous"
+                              onError={(event) => {
+                                const target = event.currentTarget as HTMLImageElement
+                                console.error(`Image load failed: ${target.src}`)
+                                target.style.opacity = "0.3"
+                              }}
+                              onLoad={() => {
+                                console.log(`Image loaded successfully: ${document.title}`)
+                              }}
                             />
                           </div>
                         ) : null}
@@ -647,11 +712,30 @@ export function MemberProfile() {
                 <p className="text-sm text-muted-foreground">
                   This application is still pending review. Approve or reject it from here.
                 </p>
+
+                {showRejectionReasonInput ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-muted-foreground" htmlFor="rejection-reason">
+                      Rejection reason
+                    </label>
+                    <Textarea
+                      id="rejection-reason"
+                      value={internalNotes}
+                      onChange={(event) => setInternalNotes(event.target.value)}
+                      placeholder="Required for rejection"
+                      className="min-h-[100px]"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Add a reason here before rejecting the application.
+                    </p>
+                  </div>
+                ) : null}
+
                 <Button onClick={handleApprove} className="w-full">
                   Approve Application
                 </Button>
                 <Button variant="outline" onClick={handleReject} className="w-full">
-                  Reject Application
+                  {showRejectionReasonInput ? "Confirm Reject" : "Reject Application"}
                 </Button>
               </CardContent>
             </Card>

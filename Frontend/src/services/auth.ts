@@ -26,6 +26,8 @@ const normalizeUser = (user: any): User => ({
   profilePhotoUrl: user?.profilePhotoUrl ?? user?.profile_photo_url ?? undefined,
   membershipStatus: user?.membershipStatus ?? user?.membership_status ?? undefined,
   membershipNumber: user?.membershipNumber ?? user?.membership_number ?? undefined,
+  membershipReviewComments: user?.membershipReviewComments ?? user?.membership_review_comments ?? undefined,
+  membershipRejectedAt: user?.membershipRejectedAt ?? user?.membership_rejected_at ?? undefined,
   qrToken: user?.qrToken ?? user?.qr_token ?? undefined,
   createdAt: user?.createdAt ?? user?.created_at ?? "",
   updatedAt: user?.updatedAt ?? user?.updated_at ?? "",

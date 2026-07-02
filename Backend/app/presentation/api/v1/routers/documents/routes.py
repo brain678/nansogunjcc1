@@ -10,6 +10,7 @@ from app.domain.models.document import Document
 from app.infrastructure.persistence.document_repository import DocumentRepository
 from app.infrastructure.persistence.member_repository import MemberRepository
 from app.presentation.api.v1.dependencies import get_current_user_id
+from app.presentation.api.v1.dependencies import get_current_user, require_permission
 
 
 router = APIRouter(
@@ -49,6 +50,38 @@ async def get_document(
     )
 
 
+@router.get(
+    "/by-user/{user_id}",
+    response_model=list[DocumentUploadResponse],
+    summary="List documents by user",
+    description="Retrieve uploaded document metadata for a specific user."
+)
+async def get_documents_by_user(
+    user_id: str,
+    current_user = Depends(get_current_user),
+) -> list[DocumentUploadResponse]:
+    """Return uploaded document metadata for a specific user."""
+    require_permission(current_user, "members", "read", "any")
+    repository = DocumentRepository()
+    documents = await repository.list_by_uploaded_by(user_id)
+
+    return [
+        DocumentUploadResponse(
+            id=str(document.id),
+            title=document.title,
+            description=document.description,
+            file_url=document.file_url,
+            file_size=document.file_size,
+            file_type=document.file_type,
+            category=document.category,
+            uploaded_by=document.uploaded_by,
+            uploaded_at=document.uploaded_at,
+            version=document.version,
+        )
+        for document in documents
+    ]
+
+
 @router.post(
     "/upload",
     response_model=DocumentUploadResponse,
@@ -74,7 +107,7 @@ async def upload_document(
         contents = await file.read()
         file_path.write_bytes(contents)
 
-        file_url = f"{request.base_url}uploads/{filename}"
+        file_url = f"/uploads/{filename}"
 
         document = Document(
             title=file.filename,

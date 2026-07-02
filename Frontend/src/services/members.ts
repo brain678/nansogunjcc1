@@ -55,6 +55,20 @@ type MembershipActionPayload = {
   comment?: string
 }
 
+type MemberResubmitPayload = {
+  email: string
+  firstName: string
+  lastName: string
+  phone?: string
+  address?: string
+  notes?: string
+  dateOfBirth?: string
+  membershipType?: string
+  membershipTier?: string
+  expiryMonths?: number
+  comment?: string
+}
+
 export const memberService = {
   async register(data: {
     email: string
@@ -104,6 +118,25 @@ export const memberService = {
     ).then(normalizeMember)
   },
 
+  async resubmitMember(memberId: string, payload: MemberResubmitPayload): Promise<Member> {
+    return apiClient.post<Member>(
+      API_ENDPOINTS.members.resubmit.replace(":id", memberId),
+      {
+        email: payload.email,
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        phone: payload.phone,
+        address: payload.address,
+        notes: payload.notes,
+        date_of_birth: payload.dateOfBirth,
+        membership_type: payload.membershipType,
+        membership_tier: payload.membershipTier,
+        expiry_months: payload.expiryMonths,
+        comment: payload.comment,
+      }
+    ).then(normalizeMember)
+  },
+
   async suspendMember(memberId: string, payload?: MembershipActionPayload): Promise<Member> {
     return apiClient.post<Member>(
       API_ENDPOINTS.members.suspend.replace(":id", memberId),
@@ -121,6 +154,12 @@ export const memberService = {
   async getById(memberId: string): Promise<Member> {
     return apiClient.get<Member>(
       API_ENDPOINTS.members.get.replace(":id", memberId)
+    ).then(normalizeMember)
+  },
+
+  async getByUserId(userId: string): Promise<Member> {
+    return apiClient.get<Member>(
+      API_ENDPOINTS.members.getByUser.replace(":userId", userId)
     ).then(normalizeMember)
   },
 

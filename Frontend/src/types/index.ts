@@ -50,6 +50,8 @@ export interface User {
   status: "active" | "inactive" | "locked"
   membershipStatus?: MembershipStatus | string | null
   membershipNumber?: string | null
+  membershipReviewComments?: string | null
+  membershipRejectedAt?: string | null
   qrToken?: string | null
   lastLoginAt?: string
   createdAt: string
@@ -121,6 +123,7 @@ export interface Member {
   isMembershipExpired: boolean
   daysUntilExpiry?: number
   requestedExpiryMonths?: number
+  dateOfBirth?: string
   submittedAt?: string
   approvedAt?: string
   rejectedAt?: string

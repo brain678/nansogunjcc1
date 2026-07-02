@@ -1,5 +1,6 @@
 from app.domain.models.document import Document
 from app.common.exceptions import EntityNotFoundError
+from typing import List
 
 
 class DocumentRepository:
@@ -23,6 +24,13 @@ class DocumentRepository:
             return None
         except Exception:
             return None
+
+    async def list_by_uploaded_by(self, uploaded_by: str) -> List[Document]:
+        try:
+            documents = await self.model.find({"uploaded_by": uploaded_by}).sort("-uploaded_at").to_list()
+            return [document for document in documents if document and not document.is_deleted()]
+        except Exception:
+            return []
 
     async def save(self, document: Document) -> Document:
         try:

@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
+import { useSearchParams } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -9,8 +10,9 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/store/auth"
-import { useRegisterMember } from "@/hooks/use-members"
+import { useRegisterMember, useResubmitMember } from "@/hooks/use-members"
 import { authService } from "@/services/auth"
+import { memberService } from "@/services/members"
 import { documentService } from "@/services/index"
 import { errorUtils } from "@/lib/utils"
 import type { Member } from "@/types"
@@ -37,14 +39,23 @@ type CreateMemberFormData = z.infer<typeof createMemberSchema>
 
 export function CreateMemberForm() {
   const currentUser = useAuthStore((state) => state.user)
+  const tokens = useAuthStore((state) => state.tokens)
+  const hasHydrated = useAuthStore((state) => state.hasHydrated)
+  const searchParams = useSearchParams()
+  const isResubmissionMode = searchParams.get("mode") === "resubmit"
+  const memberId = searchParams.get("memberId") || ""
+  const hasAuthToken = Boolean(tokens?.accessToken)
   const createMemberMutation = useRegisterMember()
-  const isPending = (createMemberMutation as any).isPending
+  const resubmitMemberMutation = useResubmitMember()
+  const isPending = (createMemberMutation as any).isPending || (resubmitMemberMutation as any).isPending
   const [passportPhoto, setPassportPhoto] = useState<File | null>(null)
   const [passportPhotoPreview, setPassportPhotoPreview] = useState<string | null>(null)
   const [studentIdCard, setStudentIdCard] = useState<File | null>(null)
   const [studentIdCardPreview, setStudentIdCardPreview] = useState<string | null>(null)
   const [submittedMember, setSubmittedMember] = useState<Member | null>(null)
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+  const [isLoadingResubmissionData, setIsLoadingResubmissionData] = useState(false)
+  const [resubmissionMemberRecordId, setResubmissionMemberRecordId] = useState<string | null>(null)
 
   const {
     register,
@@ -52,7 +63,6 @@ export function CreateMemberForm() {
     trigger,
     watch,
     getValues,
-    setValue,
     formState: { errors },
     reset,
   } = useForm<CreateMemberFormData>({
@@ -72,6 +82,11 @@ export function CreateMemberForm() {
   const watchMembershipType = watch("membershipType")
   const watchAddress = watch("address")
   const watchNotes = watch("notes")
+  const watchFirstName = watch("firstName")
+  const watchLastName = watch("lastName")
+  const watchEmail = watch("email")
+  const watchPhone = watch("phone")
+  const watchDateOfBirth = watch("dateOfBirth")
 
   const [step, setStep] = useState(1)
   const autoSubmitTriggeredRef = useRef(false)
@@ -158,26 +173,67 @@ export function CreateMemberForm() {
 
   const handleFormSubmit = React.useCallback(async (data: CreateMemberFormData) => {
     try {
-      const member = await createMemberMutation.mutateAsync(data as any)
-      setSubmittedMember(member)
-
-      if (passportPhoto) {
-        try {
-          await authService.uploadProfilePhoto(passportPhoto)
-        } catch (err) {
-          console.warn("Failed to upload passport photo")
-        }
+      if (isResubmissionMode && (!hasHydrated || !hasAuthToken)) {
+        setMessage({ type: "error", text: "Please sign in again before resubmitting your application." })
+        return
       }
 
-      if (studentIdCard) {
-        try {
-          await documentService.upload(studentIdCard, "student_id_card")
-        } catch (err) {
-          console.warn("Failed to upload student ID")
+      if (isResubmissionMode && memberId) {
+        if (passportPhoto) {
+          try {
+            await authService.uploadProfilePhoto(passportPhoto)
+          } catch (err) {
+            console.warn("Failed to upload passport photo")
+          }
         }
-      }
 
-      setMessage({ type: "success", text: "Membership application submitted successfully!" })
+        if (studentIdCard) {
+          try {
+            await documentService.upload(studentIdCard, "student_id_card")
+          } catch (err) {
+            console.warn("Failed to upload student ID")
+          }
+        }
+
+        const result = await resubmitMemberMutation.mutateAsync({
+          id: memberId,
+          memberRecordId: resubmissionMemberRecordId || undefined,
+          email: data.email,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
+          address: data.address,
+          notes: data.notes,
+          dateOfBirth: data.dateOfBirth,
+          membershipType: data.membershipType,
+          membershipTier: "standard",
+          expiryMonths: 12,
+          comment: "Resubmitted application",
+        })
+        setSubmittedMember(result.member)
+        setMessage({ type: "success", text: "Your resubmission has been received and will be reviewed again." })
+      } else {
+        const member = await createMemberMutation.mutateAsync(data as any)
+        setSubmittedMember(member)
+
+        if (passportPhoto) {
+          try {
+            await authService.uploadProfilePhoto(passportPhoto)
+          } catch (err) {
+            console.warn("Failed to upload passport photo")
+          }
+        }
+
+        if (studentIdCard) {
+          try {
+            await documentService.upload(studentIdCard, "student_id_card")
+          } catch (err) {
+            console.warn("Failed to upload student ID")
+          }
+        }
+
+        setMessage({ type: "success", text: "Membership application submitted successfully!" })
+      }
       reset({
         firstName: currentUser?.firstName || "",
         lastName: currentUser?.lastName || "",
@@ -197,16 +253,17 @@ export function CreateMemberForm() {
       })
       throw err
     }
-  }, [createMemberMutation, passportPhoto, studentIdCard, currentUser, reset])
+  }, [createMemberMutation, resubmitMemberMutation, passportPhoto, studentIdCard, currentUser, reset, isResubmissionMode, memberId, hasHydrated, hasAuthToken])
 
   const progressPercent = ((step - 1) / 3) * 100
 
   useEffect(() => {
+    if (isResubmissionMode) return
     if (step !== 4 || submittedMember || isPending || autoSubmitTriggeredRef.current) return
 
     autoSubmitTriggeredRef.current = true
     void handleFormSubmit(getValues())
-  }, [step, submittedMember, isPending, getValues, handleFormSubmit])
+  }, [step, submittedMember, isPending, getValues, handleFormSubmit, isResubmissionMode])
 
   useEffect(() => {
     if (step !== 4) {
@@ -215,7 +272,73 @@ export function CreateMemberForm() {
   }, [step])
 
   useEffect(() => {
+    if (!isResubmissionMode || !memberId) return
+
+    let isMounted = true
+    setIsLoadingResubmissionData(true)
+
+    const loadResubmissionData = async () => {
+      try {
+        let existingMember: Member | null = null
+
+        try {
+          existingMember = await memberService.getByUserId(memberId)
+        } catch {
+          try {
+            existingMember = await memberService.getById(memberId)
+          } catch {
+            existingMember = null
+          }
+        }
+
+        if (!existingMember) {
+          if (isMounted) {
+            reset({
+              firstName: currentUser?.firstName || "",
+              lastName: currentUser?.lastName || "",
+              email: currentUser?.email || "",
+              phone: currentUser?.phone || "",
+              address: "",
+              membershipType: "full",
+              notes: "",
+              dateOfBirth: "",
+            })
+            setResubmissionMemberRecordId(null)
+          }
+          return
+        }
+
+        if (!isMounted) return
+
+        setResubmissionMemberRecordId(existingMember.id)
+
+        reset({
+          firstName: existingMember.firstName || currentUser?.firstName || "",
+          lastName: existingMember.lastName || currentUser?.lastName || "",
+          email: existingMember.email || currentUser?.email || "",
+          phone: existingMember.phone || currentUser?.phone || "",
+          address: existingMember.address || "",
+          membershipType: normalizeMembershipType(existingMember.membershipType),
+          notes: existingMember.notes || "",
+          dateOfBirth: existingMember.dateOfBirth || "",
+        })
+      } finally {
+        if (isMounted) {
+          setIsLoadingResubmissionData(false)
+        }
+      }
+    }
+
+    void loadResubmissionData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [isResubmissionMode, memberId, currentUser, reset])
+
+  useEffect(() => {
     if (typeof window === "undefined") return
+    if (isResubmissionMode) return
     const raw = localStorage.getItem("pendingMembershipData")
     const persistedData = raw ? JSON.parse(raw) : {}
 
@@ -229,14 +352,18 @@ export function CreateMemberForm() {
       notes: persistedData.notes || "",
       dateOfBirth: persistedData.dateOfBirth || "",
     })
-  }, [currentUser, reset])
+  }, [currentUser, reset, isResubmissionMode])
 
   return (
     <div className="space-y-8 max-w-2xl">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Complete Your Membership Application</h1>
+        <h1 className="text-3xl font-bold tracking-tight">
+          {isResubmissionMode ? "Resubmit Your Membership Application" : "Complete Your Membership Application"}
+        </h1>
         <p className="text-muted-foreground mt-2">
-          We already have your account details. Please complete the membership-specific information below.
+          {isResubmissionMode
+            ? "Your last application was rejected. Update your details and re-upload the documents below so the review can continue."
+            : "We already have your account details. Please complete the membership-specific information below."}
         </p>
       </div>
 
@@ -310,11 +437,72 @@ export function CreateMemberForm() {
               </div>
             ) : null}
 
-            <input type="hidden" {...register("firstName")} />
-            <input type="hidden" {...register("lastName")} />
-            <input type="hidden" {...register("email")} />
-            <input type="hidden" {...register("phone")} />
-            <input type="hidden" {...register("dateOfBirth")} />
+            {isResubmissionMode ? (
+              <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div className="space-y-1">
+                  <p className="text-base font-semibold text-slate-900">Edit your application details</p>
+                  <p className="text-sm text-slate-500">Update any field below before submitting your resubmission.</p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-[#1E302A]">First name</label>
+                    <input
+                      className="w-full rounded-md border border-input bg-background px-3 py-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#008753] focus-visible:ring-offset-2"
+                      {...register("firstName")}
+                    />
+                    {errors.firstName && <p className="text-xs text-destructive">{errors.firstName.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-[#1E302A]">Last name</label>
+                    <input
+                      className="w-full rounded-md border border-input bg-background px-3 py-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#008753] focus-visible:ring-offset-2"
+                      {...register("lastName")}
+                    />
+                    {errors.lastName && <p className="text-xs text-destructive">{errors.lastName.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-[#1E302A]">Email</label>
+                    <input
+                      type="email"
+                      className="w-full rounded-md border border-input bg-background px-3 py-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#008753] focus-visible:ring-offset-2"
+                      {...register("email")}
+                    />
+                    {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-[#1E302A]">Phone</label>
+                    <input
+                      type="tel"
+                      className="w-full rounded-md border border-input bg-background px-3 py-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#008753] focus-visible:ring-offset-2"
+                      {...register("phone")}
+                    />
+                    {errors.phone && <p className="text-xs text-destructive">{errors.phone.message}</p>}
+                  </div>
+
+                  <div className="space-y-2 md:col-span-2">
+                    <label className="text-sm font-medium text-[#1E302A]">Date of birth</label>
+                    <input
+                      type="date"
+                      className="w-full rounded-md border border-input bg-background px-3 py-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#008753] focus-visible:ring-offset-2"
+                      {...register("dateOfBirth")}
+                    />
+                    {errors.dateOfBirth && <p className="text-xs text-destructive">{errors.dateOfBirth.message}</p>}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <input type="hidden" {...register("firstName")} />
+                <input type="hidden" {...register("lastName")} />
+                <input type="hidden" {...register("email")} />
+                <input type="hidden" {...register("phone")} />
+                <input type="hidden" {...register("dateOfBirth")} />
+              </>
+            )}
 
             {step === 1 && (
               <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -483,15 +671,19 @@ export function CreateMemberForm() {
                     <div className="mt-3 space-y-3 text-sm text-slate-700">
                       <div>
                         <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Full name</p>
-                        <p className="mt-1 font-medium text-slate-900">{watch("firstName") || currentUser?.firstName || "Not provided"} {watch("lastName") || currentUser?.lastName || ""}</p>
+                        <p className="mt-1 font-medium text-slate-900">{watchFirstName || currentUser?.firstName || "Not provided"} {watchLastName || currentUser?.lastName || ""}</p>
                       </div>
                       <div>
                         <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Email</p>
-                        <p className="mt-1 font-medium text-slate-900">{watch("email") || currentUser?.email || "Not provided"}</p>
+                        <p className="mt-1 font-medium text-slate-900">{watchEmail || currentUser?.email || "Not provided"}</p>
                       </div>
                       <div>
                         <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Phone</p>
-                        <p className="mt-1 font-medium text-slate-900">{watch("phone") || currentUser?.phone || "Not provided"}</p>
+                        <p className="mt-1 font-medium text-slate-900">{watchPhone || currentUser?.phone || "Not provided"}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Date of birth</p>
+                        <p className="mt-1 font-medium text-slate-900">{watchDateOfBirth || "Not provided"}</p>
                       </div>
                     </div>
                   </div>
@@ -568,6 +760,14 @@ export function CreateMemberForm() {
                   }
                 >
                   Continue
+                </Button>
+              ) : isResubmissionMode ? (
+                <Button
+                  type="submit"
+                  disabled={isPending || !hasHydrated || !hasAuthToken || isLoadingResubmissionData}
+                  className="min-w-[180px]"
+                >
+                  {isPending ? "Submitting your resubmission..." : isLoadingResubmissionData ? "Loading application..." : "Submit resubmission"}
                 </Button>
               ) : (
                 <span className="text-sm text-slate-500">

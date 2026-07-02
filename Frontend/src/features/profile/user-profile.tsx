@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
@@ -51,6 +52,7 @@ type ProfileFormData = z.infer<typeof profileSchema>
 type PasswordFormData = z.infer<typeof passwordSchema>
 
 export function UserProfile() {
+  const router = useRouter()
   const { user: storedUser } = useAuthStore((state) => ({ user: state.user }))
   const { data: user, isLoading: isProfileLoading } = useProfile()
   const updateProfileMutation = useUpdateProfile()
@@ -131,8 +133,16 @@ export function UserProfile() {
     }
   }
 
+  const handleResubmitApplication = async () => {
+    if (!profileUser?.id) return
+    router.push(`/members/create?mode=resubmit&memberId=${profileUser.id}`)
+  }
+
   const profileUser = user ?? storedUser
   const profileName = [profileUser?.firstName, profileUser?.lastName].filter(Boolean).join(" ") || profileUser?.email || "Profile"
+  const isRejectedMembership = String(profileUser?.membershipStatus ?? "").toLowerCase() === "rejected"
+  const rejectionReason = profileUser?.membershipReviewComments || null
+  const rejectionDate = profileUser?.membershipRejectedAt ? new Date(profileUser.membershipRejectedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : null
 
   const resolveMediaUrl = (value?: string | null) => {
     if (!value) return null
@@ -325,6 +335,34 @@ export function UserProfile() {
           </CardContent>
         </Card>
       </div>
+
+      {isRejectedMembership && (
+        <Card className="border-amber-300 bg-amber-50/70">
+          <CardHeader>
+            <CardTitle className="text-amber-900">Application rejected</CardTitle>
+            <CardDescription className="text-amber-800">Your application needs attention before it can be approved.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm text-amber-900">
+            <div>
+              <p className="font-semibold">Rejection reason</p>
+              <p>{rejectionReason || "No reason was provided yet."}</p>
+            </div>
+            {rejectionDate ? (
+              <div>
+                <p className="font-semibold">Rejected on</p>
+                <p>{rejectionDate}</p>
+              </div>
+            ) : null}
+            <Button
+              variant="outline"
+              className="border-amber-700 text-amber-900 hover:bg-amber-100"
+              onClick={handleResubmitApplication}
+            >
+              Resubmit application
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

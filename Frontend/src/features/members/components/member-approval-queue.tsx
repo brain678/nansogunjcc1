@@ -23,6 +23,12 @@ const renderStatusBadge = (status: string) => {
   }
 }
 
+const getLatestAuditAction = (app: Member) => {
+  const entries = app.auditLog ?? []
+  const lastEntry = entries.length ? entries[entries.length - 1] : null
+  return (lastEntry?.action ?? "").toString().toLowerCase()
+}
+
 export function MemberApprovalQueue() {
   const pendingQuery = usePendingMembers()
   const approve = useApproveMember()
@@ -123,6 +129,11 @@ export function MemberApprovalQueue() {
                     <div className="flex flex-wrap items-center gap-2">
                       <h3 className="text-lg font-semibold">{app.fullName || `${app.firstName} ${app.lastName}`}</h3>
                       {renderStatusBadge(app.status)}
+                      {getLatestAuditAction(app) === "resubmitted" ? (
+                        <Badge variant="secondary" className="border-blue-200 bg-blue-50 text-blue-700">
+                          Resubmitted
+                        </Badge>
+                      ) : null}
                     </div>
 
                     <div className="grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
@@ -238,7 +249,7 @@ export function MemberApprovalQueue() {
                       size="sm"
                       variant="destructive"
                       className="gap-1"
-                      disabled={reject.isPending}
+                      disabled={reject.isPending || !(comments[app.id] || "").trim()}
                       onClick={() => reject.mutate({ id: app.id, comment: comments[app.id] })}
                     >
                       <X className="h-4 w-4" />
@@ -256,8 +267,9 @@ export function MemberApprovalQueue() {
                     value={comments[app.id] || ""}
                     onChange={(event) => handleCommentChange(app.id, event.target.value)}
                     className="min-h-[96px] rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    placeholder="Optional review note for approval or rejection"
+                    placeholder="Required for rejection"
                   />
+                  <p className="text-xs text-muted-foreground">A rejection reason is required before the application can be rejected.</p>
                 </div>
 
                 <div className="border-t border-border pt-4">
